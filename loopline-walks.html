@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f4d3a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Loopline Walks</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&family=Overpass+Mono:wght@500&display=swap">
+<style>
+/* Layout: full-screen map, slim header, bottom sheet with Lines / Plan / Saved tabs */
+:root{
+  --bg:#f3f1ea; --panel:#ffffff; --fg:#1d2420; --muted:#5f6b64; --line:#d9ddd5;
+  --rail:#1f4d3a;      /* heritage railway green: the Looplines */
+  --route:#c2410c;     /* planned route */
+  --me:#2563eb;
+  --sans:"Overpass",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"Overpass Mono",ui-monospace,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#121614; --panel:#1b211e; --fg:#e8ece9; --muted:#9aa6a0; --line:#2c3531;
+  --rail:#4ade80; --route:#fb923c; --me:#60a5fa; color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;display:flex;flex-direction:column;overflow:hidden}
+header{background:var(--rail);color:#fff;padding:calc(env(safe-area-inset-top,0px) + 10px) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));display:flex;align-items:baseline;gap:10px}
+@media (prefers-color-scheme:dark){header{background:#173a2c}}
+header h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.01em}
+#status{font-size:12px;opacity:.85;margin-left:auto;font-family:var(--mono)}
+#map{flex:1;min-height:0;background:var(--line)}
+@media (prefers-color-scheme:dark){.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9)}}
+.fab{position:absolute;right:max(12px,env(safe-area-inset-right,0px));z-index:500;display:flex;flex-direction:column;gap:8px}
+.fab button{width:46px;height:46px;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--fg);font:600 12px var(--sans);box-shadow:0 2px 8px rgba(0,0,0,.18);cursor:pointer}
+.fab button.on{background:var(--rail);color:#fff;border-color:var(--rail)}
+.wrap{position:relative;flex:1;display:flex;flex-direction:column;min-height:0}
+#sheet{background:var(--panel);border-top:1px solid var(--line);padding:0 max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 12px) max(16px,env(safe-area-inset-left,0px));max-height:46vh;display:flex;flex-direction:column}
+.tabs{display:flex;gap:4px;padding-top:8px;border-bottom:1px solid var(--line)}
+.tabs button{flex:1;background:none;border:0;border-bottom:3px solid transparent;padding:8px 4px;font:600 14px var(--sans);color:var(--muted);cursor:pointer}
+.tabs button[aria-selected=true]{color:var(--fg);border-color:var(--rail)}
+.pane{overflow:auto;padding-top:10px}
+.row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .name{flex:1;min-width:0;font-weight:600}
+.row .sub{font-size:12px;color:var(--muted)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.btns{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+.btn{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:8px 11px;font:600 13px var(--sans);cursor:pointer}
+.btn.primary{background:var(--rail);border-color:var(--rail);color:#fff}
+.btn:disabled{opacity:.45}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--route);outline-offset:2px}
+.stats{display:flex;gap:18px;align-items:baseline;flex-wrap:wrap}
+.stats b{font-size:24px;font-weight:800}
+.hint{color:var(--muted);font-size:13px;margin:4px 0}
+input,select{font:14px var(--sans);padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg)}
+.wp{width:24px;height:24px;border-radius:50%;background:var(--route);color:#fff;font:800 12px/24px var(--sans);text-align:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.am{padding:1px 5px;border-radius:5px;background:#fff;color:#1d2420;border:1.5px solid #1d2420;font:800 10px/1.4 var(--sans);white-space:nowrap}
+.leaflet-container{font-family:var(--sans)}
+.legend{display:inline-block;width:18px;height:5px;border-radius:3px;background:var(--rail);vertical-align:middle}
+</style>
+</head>
+<body>
+<header><h1>Loopline Walks</h1><span id="status">Loading…</span></header>
+<div class="wrap">
+  <div id="map" role="application" aria-label="Map"></div>
+  <div class="fab" style="top:12px">
+    <button id="locBtn" title="Show my location" aria-label="Show my location">Me</button>
+    <button id="amBtn" title="Cafés, pubs, toilets, parking" aria-label="Toggle cafés, pubs, toilets and parking">Stops</button>
+    <button id="fitBtn" title="Show all Looplines" aria-label="Show all Looplines">All</button>
+  </div>
+</div>
+<section id="sheet">
+  <div class="tabs" role="tablist">
+    <button role="tab" data-t="lines" aria-selected="true">Lines</button>
+    <button role="tab" data-t="plan" aria-selected="false">Plan a walk</button>
+    <button role="tab" data-t="saved" aria-selected="false">Saved</button>
+  </div>
+  <div class="pane" id="p-lines">
+    <div id="lineList" class="hint">Fetching the Loopline paths…</div>
+    <div class="btns"><button class="btn" id="nearestBtn">Get me to the nearest Loopline</button></div>
+  </div>
+  <div class="pane" id="p-plan" hidden>
+    <div class="stats"><span><b class="num" id="dKm">0.00</b> km</span><span><b class="num" id="dMi">0.00</b> mi</span><span><b class="num" id="dTime">0</b> min</span>
+      <select id="pace" aria-label="Walking pace"><option value="4">Easy pace</option><option value="5" selected>Normal pace</option><option value="6">Brisk pace</option></select></div>
+    <p class="hint" id="planHint">Tap the map to add stops. Drag a stop to move it.</p>
+    <div class="btns">
+      <button class="btn" id="meStart">Start from me</button>
+      <button class="btn" id="undo">Undo</button>
+      <button class="btn" id="loop">Loop back</button>
+      <button class="btn" id="out">Out &amp; back</button>
+      <button class="btn" id="clear">Clear</button>
+    </div>
+    <div class="btns"><input id="wName" placeholder="Name this walk" aria-label="Walk name" style="flex:1;min-width:0"><button class="btn primary" id="save">Save</button></div>
+  </div>
+  <div class="pane" id="p-saved" hidden><div id="savedList"></div></div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function(){
+const BBOX='53.465,-2.56,53.55,-2.29';            // Monton / Eccles to Astley / Tyldesley, Little Hulton
+const OVERPASS=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+const ROUTER='https://routing.openstreetmap.de/routed-foot/route/v1/foot/';
+const $=id=>document.getElementById(id);
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const store={get(k){try{return JSON.parse(localStorage.getItem(k))}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const status=t=>$('status').textContent=t;
+
+const map=L.map('map',{zoomControl:false}).setView([53.507,-2.405],13);
+L.control.zoom({position:'bottomleft'}).addTo(map);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+
+const lineLayer=L.layerGroup().addTo(map), amLayer=L.layerGroup(), routeLayer=L.layerGroup().addTo(map);
+let lines={}, allPts=[], allBounds=null;
+
+function hav(a,b){const R=6371000,r=Math.PI/180,dLa=(b[0]-a[0])*r,dLo=(b[1]-a[1])*r;
+  const h=Math.sin(dLa/2)**2+Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+const km=m=>(m/1000).toFixed(2), mi=m=>(m/1609.344).toFixed(2);
+
+async function overpass(q){
+  for(const u of OVERPASS){
+    try{const r=await fetch(u,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'data='+encodeURIComponent(q)});
+      if(r.ok) return await r.json();}catch(e){}
+  }
+  throw new Error('busy');
+}
+
+function drawLines(data){
+  lineLayer.clearLayers(); lines={}; allPts=[];
+  const rail=css('--rail');
+  for(const w of data.elements){
+    if(!w.geometry) continue;
+    const pts=w.geometry.map(g=>[g.lat,g.lon]); const name=w.tags.name;
+    let len=0; for(let i=1;i<pts.length;i++) len+=hav(pts[i-1],pts[i]);
+    L.polyline(pts,{color:'#fff',weight:9,opacity:.9}).addTo(lineLayer);
+    L.polyline(pts,{color:rail,weight:5}).bindPopup('<b>'+name+'</b>').addTo(lineLayer);
+    (lines[name]=lines[name]||{len:0,pts:[]}); lines[name].len+=len; lines[name].pts.push(...pts);
+    allPts.push(...pts);
+  }
+  if(allPts.length){allBounds=L.latLngBounds(allPts); map.fitBounds(allBounds,{padding:[20,20]});}
+  const names=Object.keys(lines).sort((a,b)=>lines[b].len-lines[a].len);
+  $('lineList').className='';
+  $('lineList').innerHTML=names.length?names.map(n=>
+    `<div class="row"><span class="legend"></span><span class="name">${esc(n)}<div class="sub num">${km(lines[n].len)} km · ${mi(lines[n].len)} mi of path</div></span><button class="btn" data-n="${esc(n)}">Show</button></div>`).join('')
+    :'<p class="hint">No Loopline paths came back from the map data. Try again later.</p>';
+  $('lineList').querySelectorAll('button[data-n]').forEach(b=>b.onclick=()=>map.fitBounds(L.latLngBounds(lines[b.dataset.n].pts),{padding:[24,24]}));
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+async function loadLines(){
+  const cached=store.get('ll_lines');
+  if(cached){drawLines(cached.data); status('Ready');}
+  if(cached && Date.now()-cached.t<7*864e5) return;
+  try{
+    const d=await overpass(`[out:json][timeout:25];way["highway"]["name"~"loop ?line",i](${BBOX});out geom;`);
+    store.set('ll_lines',{t:Date.now(),data:d}); drawLines(d); status('Ready');
+  }catch(e){ if(!cached){status('Offline'); $('lineList').textContent='Could not reach the map data server. Check your signal and reload.';} }
+}
+
+/* Cafés, pubs, toilets, parking within 150 m of the lines */
+let amLoaded=false;
+$('amBtn').onclick=async()=>{
+  const on=!map.hasLayer(amLayer); $('amBtn').classList.toggle('on',on);
+  if(!on){map.removeLayer(amLayer);return;}
+  amLayer.addTo(map); if(amLoaded) return;
+  status('Finding stops…');
+  try{
+    const d=await overpass(`[out:json][timeout:25];way["highway"]["name"~"loop ?line",i](${BBOX})->.l;(node(around.l:150)["amenity"~"^(cafe|pub|toilets|parking|drinking_water)$"];way(around.l:150)["amenity"="parking"];);out center;`);
+    const lab={cafe:'Café',pub:'Pub',toilets:'WC',parking:'P',drinking_water:'Water'};
+    d.elements.forEach(e=>{const la=e.lat||e.center?.lat, lo=e.lon||e.center?.lon; if(!la) return;
+      const t=e.tags.amenity;
+      L.marker([la,lo],{icon:L.divIcon({className:'',html:`<span class="am">${lab[t]}</span>`,iconAnchor:[12,9]})})
+        .bindPopup(`<b>${esc(e.tags.name||lab[t])}</b>${e.tags.opening_hours?'<br>'+esc(e.tags.opening_hours):''}`).addTo(amLayer);});
+    amLoaded=true; status('Ready');
+  }catch(e){status('Stops unavailable');}
+};
+$('fitBtn').onclick=()=>allBounds&&map.fitBounds(allBounds,{padding:[20,20]});
+
+/* Live location */
+let me=null, meMk=null, meAcc=null, watch=null, follow=true, waiters=[];
+function startWatch(){
+  if(watch!==null||!navigator.geolocation) return;
+  watch=navigator.geolocation.watchPosition(p=>{
+    me=[p.coords.latitude,p.coords.longitude];
+    if(!meMk){meAcc=L.circle(me,{radius:p.coords.accuracy,color:css('--me'),weight:1,fillOpacity:.12}).addTo(map);
+      meMk=L.circleMarker(me,{radius:8,color:'#fff',weight:3,fillColor:css('--me'),fillOpacity:1}).addTo(map);}
+    meMk.setLatLng(me); meAcc.setLatLng(me).setRadius(p.coords.accuracy);
+    if(follow){map.setView(me,Math.max(map.getZoom(),16)); follow=false;}
+    waiters.splice(0).forEach(f=>f(me));
+  },err=>{status(err.code===1?'Location blocked':'No GPS fix'); waiters.length=0;},{enableHighAccuracy:true,maximumAge:5000});
+}
+function whereAmI(){return new Promise(res=>{ if(me) return res(me); waiters.push(res); startWatch(); status('Finding you…');});}
+$('locBtn').onclick=()=>{$('locBtn').classList.add('on'); if(me) map.setView(me,Math.max(map.getZoom(),16)); else{follow=true; startWatch();}};
+
+/* Route planning */
+let pts=[], mks=[], ctrl=null, lastDist=0;
+function renderMarkers(){
+  mks.forEach(m=>routeLayer.removeLayer(m)); mks=[];
+  pts.forEach((p,i)=>{
+    const m=L.marker(p,{draggable:true,icon:L.divIcon({className:'',html:`<div class="wp">${i===0?'S':i}</div>`,iconSize:[24,24],iconAnchor:[12,12]})}).addTo(routeLayer);
+    m.on('dragend',()=>{const ll=m.getLatLng(); pts[i]=[ll.lat,ll.lng]; route();}); mks.push(m);
+  });
+}
+let routeLine=null;
+async function route(){
+  renderMarkers();
+  if(routeLine){routeLayer.removeLayer(routeLine); routeLine=null;}
+  if(pts.length<2){setStats(0); $('planHint').textContent=pts.length?'Tap where you want to walk to.':'Tap the map to add stops. Drag a stop to move it.'; return;}
+  ctrl&&ctrl.abort(); ctrl=new AbortController();
+  const coords=pts.map(p=>p[1].toFixed(6)+','+p[0].toFixed(6)).join(';');
+  $('planHint').textContent='Working out the walking route…';
+  try{
+    const r=await fetch(ROUTER+coords+'?overview=full&geometries=geojson',{signal:ctrl.signal}); const d=await r.json();
+    if(!d.routes||!d.routes.length) throw 0;
+    const g=d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+    routeLine=L.polyline(g,{color:css('--route'),weight:5,opacity:.95,dashArray:'1 9',lineCap:'round'});
+    routeLine.addTo(routeLayer); routeLine.bringToBack();
+    setStats(d.routes[0].distance); $('planHint').textContent='Route follows footpaths. Drag a stop to change it.';
+  }catch(e){
+    if(e&&e.name==='AbortError') return;
+    let m=0; for(let i=1;i<pts.length;i++) m+=hav(pts[i-1],pts[i]);
+    routeLine=L.polyline(pts,{color:css('--route'),weight:4,dashArray:'6 8'}).addTo(routeLayer);
+    setStats(m); $('planHint').textContent='Routing server unavailable: showing straight-line distance.';
+  }
+}
+function setStats(m){lastDist=m; $('dKm').textContent=km(m); $('dMi').textContent=mi(m);
+  $('dTime').textContent=Math.round(m/1000/+$('pace').value*60);}
+$('pace').onchange=()=>setStats(lastDist);
+let tab='lines';
+map.on('click',e=>{ if(tab!=='plan') return; pts.push([e.latlng.lat,e.latlng.lng]); route(); });
+$('undo').onclick=()=>{pts.pop(); route();};
+$('clear').onclick=()=>{pts=[]; route();};
+$('loop').onclick=()=>{ if(pts.length>1){pts.push(pts[0]); route();} };
+$('out').onclick=()=>{ if(pts.length>1){pts=pts.concat(pts.slice(0,-1).reverse()); route();} };
+$('meStart').onclick=async()=>{const p=await whereAmI(); pts.unshift(p); route(); status('Ready');};
+
+$('nearestBtn').onclick=async()=>{
+  if(!allPts.length) return;
+  const p=await whereAmI(); let best=null,bd=1e12;
+  for(const q of allPts){const d=hav(p,q); if(d<bd){bd=d;best=q;}}
+  pts=[p,best]; selectTab('plan'); route(); map.fitBounds(L.latLngBounds([p,best]),{padding:[50,50],maxZoom:17}); status('Ready');
+};
+
+/* Saved walks */
+function renderSaved(){
+  const s=store.get('ll_saved')||[];
+  $('savedList').innerHTML=s.length?s.map((w,i)=>`<div class="row"><span class="name">${esc(w.name)}<div class="sub num">${km(w.dist)} km · ${mi(w.dist)} mi · ${w.date}</div></span><button class="btn" data-o="${i}">Open</button><button class="btn" data-d="${i}" aria-label="Delete ${esc(w.name)}">Delete</button></div>`).join('')
+    :'<p class="hint">No saved walks yet. Plan one and tap Save. Walks are kept on this phone.</p>';
+  $('savedList').querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>{pts=s[b.dataset.o].pts.slice(); selectTab('plan'); route(); map.fitBounds(L.latLngBounds(pts),{padding:[30,30]});});
+  $('savedList').querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{
+    if(b.dataset.sure){s.splice(b.dataset.d,1); store.set('ll_saved',s); renderSaved();} else {b.dataset.sure=1; b.textContent='Confirm';}});
+}
+$('save').onclick=()=>{
+  if(pts.length<2){$('planHint').textContent='Add at least two stops before saving.';return;}
+  const s=store.get('ll_saved')||[];
+  const name=$('wName').value.trim()||('Walk '+(s.length+1));
+  s.unshift({name,pts,dist:lastDist,date:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'short'})});
+  store.set('ll_saved',s); $('wName').value=''; $('planHint').textContent='Saved as "'+name+'".'; renderSaved();
+};
+
+function selectTab(t){tab=t;
+  document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===t));
+  ['lines','plan','saved'].forEach(x=>$('p-'+x).hidden=x!==t);
+  map.getContainer().style.cursor=t==='plan'?'crosshair':'';
+  setTimeout(()=>map.invalidateSize(),50);
+}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>selectTab(b.dataset.t));
+
+renderSaved(); loadLines();
+})();
+</script>
+</body>
+</html>
