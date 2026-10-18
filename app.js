@@ -41,26 +41,31 @@ const sub = t => { $('#sub').textContent = t; };
 /* ---------- Map ---------- */
 const map = L.map('map', { zoomControl: false, tap: true }).setView([53.507, -2.405], 13);
 map.attributionControl.setPrefix(false);
-let mapStyle = store.get('ll_style') || 'clean', base = null;
+// All three map styles are free and need no API key
+const STYLES = {
+  standard: { label: 'Standard map', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', max: 19, dim: true,
+              attr: '© OpenStreetMap contributors' },
+  paths:    { label: 'Paths map: footpaths and cycle routes stand out', url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', max: 19, sub: 'abc', dim: true,
+              attr: '© OpenStreetMap contributors, CyclOSM' },
+  satellite:{ label: 'Satellite view', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', max: 19, dim: false,
+              attr: 'Imagery © Esri, Maxar, Earthstar Geographics' }
+};
+const ORDER = ['standard', 'paths', 'satellite'];
+let mapStyle = store.get('ll_style'); if (!STYLES[mapStyle]) mapStyle = 'standard';
+let base = null;
 function setBase() {
   if (base) map.removeLayer(base);
-  const dark = darkMQ.matches;
-  if (mapStyle === 'clean') {
-    base = L.tileLayer(dark ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-                            : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap contributors © CARTO' });
-  } else {
-    base = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      { maxZoom: 19, attribution: '© OpenStreetMap contributors', className: dark ? 'tiles-dim' : '' });
-  }
+  const s = STYLES[mapStyle];
+  base = L.tileLayer(s.url, { maxZoom: s.max, subdomains: s.sub || 'abc', attribution: s.attr,
+                               className: s.dim && darkMQ.matches ? 'tiles-dim' : '' });
   base.addTo(map); base.bringToBack();
   const b = $('#styleBtn');
-  b.setAttribute('aria-pressed', mapStyle === 'detailed');
-  b.setAttribute('aria-label', mapStyle === 'detailed' ? 'Switch to clean map' : 'Switch to detailed footpath map');
+  b.setAttribute('aria-pressed', mapStyle !== 'standard');
+  b.setAttribute('aria-label', 'Change map style (now: ' + s.label.split(':')[0] + ')');
 }
 $('#styleBtn').onclick = () => {
-  mapStyle = mapStyle === 'clean' ? 'detailed' : 'clean'; store.set('ll_style', mapStyle); setBase();
-  toast(mapStyle === 'detailed' ? 'Detailed map: shows every footpath' : 'Clean map');
+  mapStyle = ORDER[(ORDER.indexOf(mapStyle) + 1) % ORDER.length]; store.set('ll_style', mapStyle); setBase();
+  toast(STYLES[mapStyle].label);
 };
 setBase();
 

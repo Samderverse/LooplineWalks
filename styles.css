@@ -83,6 +83,8 @@ button:focus-visible,[role=button]:focus-visible,input:focus-visible{outline:2.5
 .row .glyph{flex:none;width:58px;height:34px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center}
 .row .glyph svg{width:50px;height:28px}
 .row .txt{flex:1;min-width:0}
+.row .name,.row .meta{display:block}
+.row .meta{margin-top:2px}
 .row .name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .row .meta{font:500 12px var(--mono);color:var(--muted)}
 .row .chev{color:var(--muted);font-size:20px}

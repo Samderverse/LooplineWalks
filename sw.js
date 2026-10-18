@@ -1,8 +1,8 @@
 /* Loopline Walks service worker.
    When you update any app file, bump VERSION so phones pick up the new copy. */
-const VERSION = 'lw-v1';
+const VERSION = 'lw-v2';
 const SHELL = VERSION + '-shell';
-const TILES = 'lw-tiles';
+const TILES = 'lw-tiles-2';
 const MAX_TILES = 2500;
 
 const SHELL_FILES = [
@@ -18,11 +18,12 @@ self.addEventListener('install', e => {
 
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k.endsWith('-shell') && k !== SHELL).map(k => caches.delete(k))))
+    .then(keys => Promise.all(keys.filter(k => k !== SHELL && k !== TILES).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
-const isTile = u => /(^|\.)tile\.openstreetmap\.org$/.test(u.hostname) || /basemaps\.cartocdn\.com$/.test(u.hostname);
+const isTile = u => /(^|\.)tile\.openstreetmap\.org$/.test(u.hostname) || /tile-cyclosm\.openstreetmap\.fr$/.test(u.hostname)
+  || (u.hostname === 'server.arcgisonline.com' && u.pathname.includes('/tile/'));
 const isLive = u => /overpass|routing\.openstreetmap\.de/.test(u.hostname);
 
 let trimming = false;
