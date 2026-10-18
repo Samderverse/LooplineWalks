@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>Loopline Walks</title>
+<meta name="description" content="Walking map and route planner for the Looplines around Worsley and Walkden.">
+<meta name="theme-color" content="#1d5c45" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1411" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Looplines">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;700;800;900&family=Overpass+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="map" aria-label="Map of the Looplines"></div>
+
+<header class="brand" id="brand">
+  <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17c0-6 5-10 9-10 3.3 0 6 2.2 6 5s-2.2 4.5-4.5 4.5S10 15 10 13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="4" cy="17" r="2.2" fill="currentColor"/></svg></span>
+  <span class="brand-text"><b>Loopline</b> Walks<small id="sub">Loading paths…</small></span>
+</header>
+
+<nav class="ctrls" aria-label="Map controls">
+  <button id="locBtn" class="ctl" aria-label="Show and follow my location" aria-pressed="false">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg></button>
+  <button id="amBtn" class="ctl" aria-label="Show cafés, pubs, toilets and parking" aria-pressed="false">
+    <svg viewBox="0 0 24 24"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3v3M12 3v3"/></svg></button>
+  <button id="styleBtn" class="ctl" aria-label="Switch to detailed footpath map" aria-pressed="false">
+    <svg viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5z"/><path d="m2 13 10 5 10-5"/></svg></button>
+  <button id="fitBtn" class="ctl" aria-label="Show all the Looplines">
+    <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+</nav>
+
+<section id="sheet" class="sheet">
+  <div id="grab" class="grab" role="button" tabindex="0" aria-label="Expand or collapse panel"><span></span></div>
+  <div class="seg" role="tablist">
+    <button role="tab" data-t="lines" aria-selected="true">Lines</button>
+    <button role="tab" data-t="plan" aria-selected="false">Plan</button>
+    <button role="tab" data-t="walk" aria-selected="false">Walk</button>
+    <button role="tab" data-t="saved" aria-selected="false">Saved</button>
+  </div>
+
+  <div class="body">
+    <div class="pane" id="p-lines">
+      <div class="headline"><span class="big num" id="netKm">–</span><span class="unit">km of Loopline path</span></div>
+      <button class="cta" id="nearestBtn">
+        <svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+        Take me to the nearest Loopline</button>
+      <div id="lineList" class="list"><p class="hint">Fetching the paths from OpenStreetMap…</p></div>
+    </div>
+
+    <div class="pane" id="p-plan" hidden>
+      <div class="stats">
+        <div><span class="big num" id="dKm">0.0</span><span class="unit">km</span></div>
+        <div><span class="mid num" id="dMi">0.0</span><span class="unit">miles</span></div>
+        <div><span class="mid num" id="dTime">0m</span><span class="unit">walking</span></div>
+      </div>
+      <div class="pace" role="radiogroup" aria-label="Walking pace">
+        <label><input type="radio" name="pace" value="4"><span>Stroll</span></label>
+        <label><input type="radio" name="pace" value="5" checked><span>Steady</span></label>
+        <label><input type="radio" name="pace" value="6"><span>Brisk</span></label>
+      </div>
+      <p class="hint" id="planHint">Tap the map to drop stops. The route follows real footpaths, and you can drag any stop.</p>
+      <div class="chips">
+        <button class="chip" id="meStart">Start from me</button>
+        <button class="chip" id="loop">Loop back</button>
+        <button class="chip" id="out">Out &amp; back</button>
+        <button class="chip" id="undo">Undo</button>
+        <button class="chip ghost" id="clear">Clear</button>
+      </div>
+      <div class="saverow">
+        <input id="wName" placeholder="Name this walk" aria-label="Walk name" autocomplete="off">
+        <button class="btn" id="save">Save</button>
+      </div>
+    </div>
+
+    <div class="pane" id="p-walk" hidden>
+      <div class="stats">
+        <div><span class="big num" id="rKm">0.00</span><span class="unit">km walked</span></div>
+        <div><span class="mid num" id="rTime">0:00</span><span class="unit">time</span></div>
+        <div><span class="mid num" id="rPace">–</span><span class="unit">min / km</span></div>
+      </div>
+      <p class="hint" id="recHint">Record a walk as you go. Keep the app open: your phone pauses GPS for web apps when the screen locks.</p>
+      <div class="chips" id="recIdle"><button class="btn wide" id="recStart"><i class="dot"></i>Start recording</button></div>
+      <div class="chips" id="recLive" hidden>
+        <button class="btn wide alt" id="recPause">Pause</button>
+        <button class="btn wide" id="recStop">Finish &amp; save</button>
+      </div>
+    </div>
+
+    <div class="pane" id="p-saved" hidden><div id="savedList" class="list"></div></div>
+  </div>
+</section>
+
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>
