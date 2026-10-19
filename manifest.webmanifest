@@ -1,7 +1,7 @@
 {
   "name": "Loopline Walks",
   "short_name": "Looplines",
-  "description": "Walking map, route planner and walk recorder for the Looplines around Worsley and Walkden.",
+  "description": "Walking map, route planner and walk log for the Looplines around Worsley and Walkden.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

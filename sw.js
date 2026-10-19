@@ -1,6 +1,6 @@
 /* Loopline Walks service worker.
    When you update any app file, bump VERSION so phones pick up the new copy. */
-const VERSION = 'lw-v2';
+const VERSION = 'lw-v3';
 const SHELL = VERSION + '-shell';
 const TILES = 'lw-tiles-2';
 const MAX_TILES = 2500;

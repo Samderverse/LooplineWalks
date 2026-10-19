@@ -4,9 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <title>Loopline Walks</title>
-<meta name="description" content="Walking map and route planner for the Looplines around Worsley and Walkden.">
-<meta name="theme-color" content="#1d5c45" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#0e1411" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Walking map, route planner and walk log for the Looplines around Worsley and Walkden.">
+<meta name="theme-color" content="#1d5c45">
+<script>
+/* Set day or night before anything paints, so the app never flashes the wrong theme */
+(function () {
+  try {
+    var mode = JSON.parse(localStorage.getItem('ll_theme') || '"auto"');
+    var last = JSON.parse(localStorage.getItem('ll_theme_eff') || 'null');
+    var dark = mode === 'night' || (mode === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches) || (mode === 'sunset' && last === 'dark');
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    document.querySelector('meta[name=theme-color]').setAttribute('content', dark ? '#0e1411' : '#1d5c45');
+  } catch (e) {}
+})();
+</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -23,19 +34,21 @@
 <body>
 <div id="map" aria-label="Map of the Looplines"></div>
 
-<header class="brand" id="brand">
+<button class="brand" id="brand" type="button" aria-label="Open settings">
   <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 17c0-6 5-10 9-10 3.3 0 6 2.2 6 5s-2.2 4.5-4.5 4.5S10 15 10 13" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><circle cx="4" cy="17" r="2.2" fill="currentColor"/></svg></span>
   <span class="brand-text"><b>Loopline</b> Walks<small id="sub">Loading paths…</small></span>
-</header>
+  <svg class="cog" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+</button>
 
 <nav class="ctrls" aria-label="Map controls">
-  <button id="locBtn" class="ctl" aria-label="Show and follow my location" aria-pressed="false">
+  <button id="locBtn" class="ctl" type="button" aria-label="Show and follow my location" aria-pressed="false">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg></button>
-  <button id="amBtn" class="ctl" aria-label="Show cafés, pubs, toilets and parking" aria-pressed="false">
+  <button id="themeBtn" class="ctl" type="button" aria-label="Switch to night mode"></button>
+  <button id="amBtn" class="ctl" type="button" aria-label="Show cafés, pubs, toilets and parking" aria-pressed="false">
     <svg viewBox="0 0 24 24"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M16 11h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3v3M12 3v3"/></svg></button>
-  <button id="styleBtn" class="ctl" aria-label="Switch to detailed footpath map" aria-pressed="false">
+  <button id="styleBtn" class="ctl" type="button" aria-label="Change map style" aria-pressed="false">
     <svg viewBox="0 0 24 24"><path d="M12 3 2 8l10 5 10-5z"/><path d="m2 13 10 5 10-5"/></svg></button>
-  <button id="fitBtn" class="ctl" aria-label="Show all the Looplines">
+  <button id="fitBtn" class="ctl" type="button" aria-label="Show all the Looplines">
     <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
 </nav>
 
@@ -45,13 +58,14 @@
     <button role="tab" data-t="lines" aria-selected="true">Lines</button>
     <button role="tab" data-t="plan" aria-selected="false">Plan</button>
     <button role="tab" data-t="walk" aria-selected="false">Walk</button>
-    <button role="tab" data-t="saved" aria-selected="false">Saved</button>
+    <button role="tab" data-t="routes" aria-selected="false">Routes</button>
+    <button role="tab" data-t="journeys" aria-selected="false">Journeys</button>
   </div>
 
-  <div class="body">
+  <div class="body" id="body">
     <div class="pane" id="p-lines">
       <div class="headline"><span class="big num" id="netKm">–</span><span class="unit">km of Loopline path</span></div>
-      <button class="cta" id="nearestBtn">
+      <button class="cta" id="nearestBtn" type="button">
         <svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
         Take me to the nearest Loopline</button>
       <div id="lineList" class="list"><p class="hint">Fetching the paths from OpenStreetMap…</p></div>
@@ -63,22 +77,22 @@
         <div><span class="mid num" id="dMi">0.0</span><span class="unit">miles</span></div>
         <div><span class="mid num" id="dTime">0m</span><span class="unit">walking</span></div>
       </div>
-      <div class="pace" role="radiogroup" aria-label="Walking pace">
+      <div class="opts three" role="radiogroup" aria-label="Walking pace">
         <label><input type="radio" name="pace" value="4"><span>Stroll</span></label>
         <label><input type="radio" name="pace" value="5" checked><span>Steady</span></label>
         <label><input type="radio" name="pace" value="6"><span>Brisk</span></label>
       </div>
       <p class="hint" id="planHint">Tap the map to drop stops. The route follows real footpaths, and you can drag any stop.</p>
       <div class="chips">
-        <button class="chip" id="meStart">Start from me</button>
-        <button class="chip" id="loop">Loop back</button>
-        <button class="chip" id="out">Out &amp; back</button>
-        <button class="chip" id="undo">Undo</button>
-        <button class="chip ghost" id="clear">Clear</button>
+        <button class="chip" type="button" id="meStart">Start from me</button>
+        <button class="chip" type="button" id="loop">Loop back</button>
+        <button class="chip" type="button" id="out">Out &amp; back</button>
+        <button class="chip" type="button" id="undo">Undo</button>
+        <button class="chip ghost" type="button" id="clear">Clear</button>
       </div>
       <div class="saverow">
-        <input id="wName" placeholder="Name this walk" aria-label="Walk name" autocomplete="off">
-        <button class="btn" id="save">Save</button>
+        <input id="wName" placeholder="Name this route" aria-label="Route name" autocomplete="off" maxlength="60">
+        <button class="btn" type="button" id="save">Save route</button>
       </div>
     </div>
 
@@ -88,17 +102,76 @@
         <div><span class="mid num" id="rTime">0:00</span><span class="unit">time</span></div>
         <div><span class="mid num" id="rPace">–</span><span class="unit">min / km</span></div>
       </div>
-      <p class="hint" id="recHint">Record a walk as you go. Keep the app open: your phone pauses GPS for web apps when the screen locks.</p>
-      <div class="chips" id="recIdle"><button class="btn wide" id="recStart"><i class="dot"></i>Start recording</button></div>
+      <p class="hint" id="recHint">Log a walk as you go. Keep the app open on screen: iPhones pause GPS for web apps when the screen locks.</p>
+      <div class="chips" id="recIdle"><button class="btn wide" type="button" id="recStart"><i class="dot"></i>Start recording</button></div>
       <div class="chips" id="recLive" hidden>
-        <button class="btn wide alt" id="recPause">Pause</button>
-        <button class="btn wide" id="recStop">Finish &amp; save</button>
+        <button class="btn wide alt" type="button" id="recPause">Pause</button>
+        <button class="btn wide" type="button" id="recStop">Finish &amp; save</button>
       </div>
     </div>
 
-    <div class="pane" id="p-saved" hidden><div id="savedList" class="list"></div></div>
+    <div class="pane" id="p-routes" hidden><div id="routeList" class="list"></div></div>
+    <div class="pane" id="p-journeys" hidden><div id="journeyList" class="list"></div></div>
+    <div class="pane" id="p-detail" hidden><div id="detail"></div></div>
   </div>
 </section>
+
+<!-- Settings -->
+<div class="modal" id="m-settings" hidden>
+  <div class="scrim" data-close></div>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="set-title">
+    <div class="card-head"><h2 id="set-title">Settings</h2><button class="x" type="button" data-close aria-label="Close settings">×</button></div>
+    <h3 class="label">Appearance</h3>
+    <div class="optlist" role="radiogroup" aria-label="Appearance" id="themeOpts">
+      <label><input type="radio" name="theme" value="auto"><span><b>Match phone</b><small>Follows your iPhone's light or dark setting</small></span></label>
+      <label><input type="radio" name="theme" value="sunset"><span><b>Sunrise &amp; sunset</b><small id="sunTimes">Day map in daylight, night map after dark</small></span></label>
+      <label><input type="radio" name="theme" value="day"><span><b>Always day</b><small>Bright map, best in sunshine</small></span></label>
+      <label><input type="radio" name="theme" value="night"><span><b>Always night</b><small>Dark map, easy on the eyes after dusk</small></span></label>
+    </div>
+    <h3 class="label">Backup</h3>
+    <p class="hint" id="backupInfo">Your routes and journeys are stored on this phone only.</p>
+    <div class="chips">
+      <button class="btn" type="button" id="exportBtn">Export backup</button>
+      <button class="btn alt" type="button" id="importBtn">Restore from file</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+    </div>
+    <p class="fine">Loopline Walks <span id="ver"></span> · Map data © OpenStreetMap contributors · Walking routes by OSRM</p>
+  </div>
+</div>
+
+<!-- Share -->
+<div class="modal" id="m-share" hidden>
+  <div class="scrim" data-close></div>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="share-title">
+    <div class="card-head"><h2 id="share-title">Share</h2><button class="x" type="button" data-close aria-label="Close share">×</button></div>
+    <div class="preview" id="sharePreview"><span class="hint">Drawing your card…</span></div>
+    <div class="opts two" role="radiogroup" aria-label="Card shape">
+      <label><input type="radio" name="shape" value="post" checked><span>Post 4:5</span></label>
+      <label><input type="radio" name="shape" value="story"><span>Story 9:16</span></label>
+    </div>
+    <label class="switch"><input type="checkbox" id="optHide" checked><span class="track"></span><span class="txt"><b>Hide start and finish</b><small>Trims 200 m off each end so your home isn't shown</small></span></label>
+    <label class="switch"><input type="checkbox" id="optNet" checked><span class="track"></span><span class="txt"><b>Show the Loopline network</b><small>Draws the other lines faintly behind your route</small></span></label>
+    <div class="chips">
+      <button class="btn wide" type="button" id="shareImg" disabled>Share image</button>
+      <button class="btn wide alt" type="button" id="shareGpx" disabled>GPX file</button>
+    </div>
+    <p class="fine">Share image opens your iPhone's share menu, where you can pick Instagram, WhatsApp, Facebook, Messages or Save Image. The GPX file works with Strava, Komoot and OS Maps.</p>
+  </div>
+</div>
+
+<!-- Confirm / rename -->
+<div class="modal" id="m-dialog" hidden>
+  <div class="scrim" data-close></div>
+  <div class="card small" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+    <h2 id="dlg-title"></h2>
+    <p class="hint" id="dlg-text"></p>
+    <input id="dlg-input" autocomplete="off" maxlength="60" hidden aria-labelledby="dlg-title">
+    <div class="chips end">
+      <button class="btn alt" type="button" id="dlg-cancel">Cancel</button>
+      <button class="btn" type="button" id="dlg-ok">OK</button>
+    </div>
+  </div>
+</div>
 
 <div id="toast" class="toast" role="status" hidden></div>
 
